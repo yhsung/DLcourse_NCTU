@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 from __future__ import print_function
+import datetime
+import os
 import logging
 import argparse
 import torch
@@ -10,6 +12,21 @@ from torchvision import datasets, transforms
 from torch.autograd import Variable
 from tqdm import tqdm
 
+log_filename = datetime.datetime.now().strftime("log/tk%Y-%m-%d_%H_%M_%S.log")
+os.makedirs(os.path.dirname(log_filename), exist_ok=True)
+logging.basicConfig(level=logging.DEBUG,
+            format='%(asctime)s %(name)-12s %(levelname)-8s %(message)s',
+            datefmt='%m-%d %H:%M:%S',
+            filename=log_filename)
+# 定義 handler 輸出 sys.stderr
+console = logging.StreamHandler()
+console.setLevel(logging.INFO)
+# 設定輸出格式
+formatter = logging.Formatter('%(name)-12s: %(levelname)-8s %(message)s')
+# handler 設定輸出格式
+console.setFormatter(formatter)
+# 加入 hander 到 root logger
+logging.getLogger('').addHandler(console)
 # Training settings
 parser = argparse.ArgumentParser(description='PyTorch MNIST Example')
 parser.add_argument('--batch-size', type=int, default=128, metavar='N',
@@ -25,7 +42,7 @@ parser.add_argument('--no-cuda', action='store_true', default=False,
 parser.add_argument('--seed', type=int, default=1, metavar='S',
                     help='random seed (default: 1)')
 
-args = parser.parse_args()
+args = parser.parse_args(args=[])
 args.cuda = not args.no_cuda and torch.cuda.is_available()
 
 torch.manual_seed(args.seed)
@@ -125,7 +142,7 @@ def test(epoch):
 
     test_loss = test_loss
     test_loss /= len(test_loader) # loss function already averages over batch size
-    logging.debug('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
+    logging.info('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
         test_loss, correct, len(test_loader.dataset),
         100. * correct / len(test_loader.dataset)))
 
