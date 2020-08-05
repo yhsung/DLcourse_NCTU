@@ -1,4 +1,6 @@
+#!/usr/bin/env python
 from __future__ import print_function
+import logging
 import argparse
 import torch
 import torch.nn as nn
@@ -6,6 +8,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torchvision import datasets, transforms
 from torch.autograd import Variable
+from tqdm import tqdm
 
 # Training settings
 parser = argparse.ArgumentParser(description='PyTorch MNIST Example')
@@ -67,9 +70,10 @@ class Net(nn.Module):
         return out
 
 model = Net()
+print(model)
 if args.cuda:
-	device = torch.device('cuda')
-	model.to(device)
+        device = torch.device('cuda')
+        model.to(device)
 
 #define optimizer/loss function
 Loss = nn.CrossEntropyLoss()
@@ -81,7 +85,7 @@ def adjust_learning_rate(optimizer, epoch):
        lr = 0.01
     elif epoch < 15:
        lr = 0.001
-    else: 
+    else:
        lr = 0.0001
 
     for param_group in optimizer.param_groups:
@@ -92,7 +96,7 @@ def train(epoch):
     model.train()
     adjust_learning_rate(optimizer, epoch)
 
-    for batch_idx, (data, target) in enumerate(train_loader):
+    for batch_idx, (data, target) in tqdm(enumerate(train_loader)):
         if args.cuda:
             data, target = data.to(device), target.to(device)
 
@@ -101,32 +105,32 @@ def train(epoch):
         loss = Loss(output, target)
         loss.backward()
         optimizer.step()
-        print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
+        logging.debug('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
                 epoch, batch_idx * len(data), len(train_loader.dataset),
-                100. * batch_idx / len(train_loader), loss.data[0]))
+                100. * batch_idx / len(train_loader), loss.item()))
 
 #Testing function
 def test(epoch):
     model.eval()
     test_loss = 0
     correct = 0
-    for batch_idx, (data, target) in enumerate(test_loader):
+    for batch_idx, (data, target) in tqdm(enumerate(test_loader)):
         if args.cuda:
             data, target = data.to(device), target.to(device)
-	with torch.no_grad():
-        	output = model(data)
-        test_loss += Loss(output, target).data[0]
+        with torch.no_grad():
+                output = model(data)
+        test_loss += Loss(output, target).item()
         pred = output.data.max(1)[1] # get the index of the max log-probability
         correct += pred.eq(target.data).cpu().sum()
 
     test_loss = test_loss
     test_loss /= len(test_loader) # loss function already averages over batch size
-    print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
+    logging.debug('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
         test_loss, correct, len(test_loader.dataset),
         100. * correct / len(test_loader.dataset)))
 
 #run and save model
-for epoch in range(1, args.epochs + 1):
+for epoch in tqdm(range(args.epochs)):
     train(epoch)
     test(epoch)
     savefilename = 'LeNet_'+str(epoch)+'.tar'
