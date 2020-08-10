@@ -1,5 +1,6 @@
 #!/usr/bin/env python
-from __future__ import print_function
+import matplotlib.pyplot as plt
+import numpy as np
 import datetime
 import os
 import logging
@@ -10,7 +11,11 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torchvision import datasets, transforms
 from torch.autograd import Variable
+from torchsummary import summary
 from tqdm import tqdm
+# Exercise: tensorboard setup
+from torch.utils.tensorboard import SummaryWriter
+writer = SummaryWriter('runs/test')
 
 log_filename = datetime.datetime.now().strftime("log/tk%Y-%m-%d_%H_%M_%S.log")
 os.makedirs(os.path.dirname(log_filename), exist_ok=True)
@@ -47,6 +52,7 @@ args.cuda = not args.no_cuda and torch.cuda.is_available()
 
 torch.manual_seed(args.seed)
 if args.cuda:
+    device = torch.device('cuda')
     torch.cuda.manual_seed(args.seed)
 
 # Dataloader
@@ -88,13 +94,70 @@ class Net(nn.Module):
 
 model = Net()
 print(model)
-if args.cuda:
-        device = torch.device('cuda')
-        model.to(device)
+summary(model, (1, 28, 28))
+
+# Exercise: adding 3x3 convolution networks
+class Net2(nn.Module):
+    def __init__(self):
+        super(Net2, self).__init__()
+        self.net= nn.Sequential(
+                nn.Conv2d(1, 6, kernel_size=(5,5),stride=1, padding=0),
+                nn.ReLU(),
+                nn.MaxPool2d(2),
+                nn.Conv2d(6, 6, kernel_size=(3,3),stride=1, padding=1),
+                nn.ReLU(),
+                nn.Conv2d(6, 6, kernel_size=(3,3),stride=1, padding=1),
+                nn.ReLU(),
+                nn.Conv2d(6, 16, kernel_size=(5,5),stride=1, padding=0),
+                nn.ReLU(),
+                nn.MaxPool2d(2),
+                nn.Flatten(),
+                nn.Linear(16*4*4, 120),
+                nn.Linear(120, 84),
+                nn.Linear(84, 10))
+
+    def forward(self, x):
+        out = self.net(x)
+        return out
+
+model = Net2()
+print(model)
+summary(model, (1, 28, 28))
+
+# Exercise: 2x wider network
+class Net3(nn.Module):
+    def __init__(self):
+        super(Net3, self).__init__()
+        self.net= nn.Sequential(
+                nn.Conv2d(1, 12, kernel_size=(5,5),stride=1, padding=0),
+                nn.ReLU(),
+                nn.MaxPool2d(2),
+                nn.Conv2d(12, 12, kernel_size=(3,3),stride=1, padding=1),
+                nn.ReLU(),
+                nn.Conv2d(12, 12, kernel_size=(3,3),stride=1, padding=1),
+                nn.ReLU(),
+                nn.Conv2d(12, 32, kernel_size=(5,5),stride=1, padding=0),
+                nn.ReLU(),
+                nn.MaxPool2d(2),
+                nn.Flatten(),
+                nn.Linear(32*4*4, 120),
+                nn.Linear(120, 84),
+                nn.Linear(84, 10))
+
+    def forward(self, x):
+        out = self.net(x)
+        return out
+
+model = Net3()
+print(model)
+summary(model, (1, 28, 28))
 
 #define optimizer/loss function
 Loss = nn.CrossEntropyLoss()
 optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum)
+# Exercise: different optimizer
+optimizer = optim.Adam(model.parameters(), lr=args.lr)
+optimizer = optim.RMSprop(model.parameters(), lr=args.lr)
 
 #learning rate scheduling
 def adjust_learning_rate(optimizer, epoch):
@@ -107,13 +170,15 @@ def adjust_learning_rate(optimizer, epoch):
 
     for param_group in optimizer.param_groups:
         param_group['lr'] = lr
-
+# Exercise: scheduler for learning rate
+scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=[10, 15], gamma=0.1)
 #training function
 def train(epoch):
     model.train()
-    adjust_learning_rate(optimizer, epoch)
+    #adjust_learning_rate(optimizer, epoch)
 
     for batch_idx, (data, target) in tqdm(enumerate(train_loader)):
+    #for batch_idx, (data, target) in enumerate(train_loader):
         if args.cuda:
             data, target = data.to(device), target.to(device)
 
@@ -131,7 +196,8 @@ def test(epoch):
     model.eval()
     test_loss = 0
     correct = 0
-    for batch_idx, (data, target) in tqdm(enumerate(test_loader)):
+    #for batch_idx, (data, target) in tqdm(enumerate(test_loader)):
+    for batch_idx, (data, target) in enumerate(test_loader):
         if args.cuda:
             data, target = data.to(device), target.to(device)
         with torch.no_grad():
@@ -147,11 +213,33 @@ def test(epoch):
         100. * correct / len(test_loader.dataset)))
 
 #run and save model
+if args.cuda:
+    model.to(device)
 for epoch in tqdm(range(args.epochs)):
     train(epoch)
     test(epoch)
+    scheduler.step()
     savefilename = 'LeNet_'+str(epoch)+'.tar'
     torch.save({
             'epoch': epoch,
             'state_dict': model.state_dict(),
         }, savefilename)
+
+# Exercise: write to tensorboard
+def matplotlib_imshow(img, one_channel=False):
+    if one_channel:
+        img = img.mean(dim=0)
+    img = img / 2 + 0.5     # unnormalize
+    npimg = img.numpy()
+    if one_channel:
+        plt.imshow(npimg, cmap="Greys")
+    else:
+        plt.imshow(np.transpose(npimg, (1, 2, 0)))
+
+dataiter = iter(train_loader)
+images, labels = dataiter.next()
+img_grid = torchvision.utils.make_grid(images)
+# show images
+matplotlib_imshow(img_grid, one_channel=True)
+# write to tensorboard
+writer.add_image('four_fashion_mnist_images', img_grid)
